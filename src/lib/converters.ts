@@ -202,6 +202,86 @@ function getTypeScriptType(protoType: string): string {
   }
 }
 
+// Helper function to generate Python dataclass from protobuf type
+function generatePython(type: protobuf.Type): string {
+  const className = type.name;
+  const fields = type.fieldsArray;
+
+  let pyCode = `from dataclasses import dataclass\nfrom typing import Optional, List\n\n`;
+  pyCode += `@dataclass\nclass ${className}:\n`;
+  pyCode += `    """${className} dataclass generated from proto definition"""\n`;
+  
+  // Field declarations
+  for (const field of fields) {
+    const pyType = getPythonType(field.type, field.repeated);
+    const defaultValue = getPythonDefaultValue(field.type, field.repeated);
+    
+    if ((field as any).comment) {
+      pyCode += `    # ${(field as any).comment}\n`;
+    }
+    pyCode += `    ${field.name}: ${pyType} = ${defaultValue}\n`;
+  }
+
+  // Add validation method
+  pyCode += `\n    def validate(self) -> List[str]:\n`;
+  pyCode += `        """Validate the dataclass and return list of errors"""\n`;
+  pyCode += `        errors = []\n`;
+  for (const field of fields) {
+    if (!field.repeated && (field as any).required !== false) {
+      pyCode += `        if self.${field.name} is None:\n`;
+      pyCode += `            errors.append("${field.name} is required")\n`;
+    }
+  }
+  pyCode += `        return errors\n`;
+
+  // Add to_dict method
+  pyCode += `\n    def to_dict(self) -> dict:\n`;
+  pyCode += `        """Convert to dictionary representation"""\n`;
+  pyCode += `        return {\n`;
+  for (const field of fields) {
+    pyCode += `            "${field.name}": self.${field.name},\n`;
+  }
+  pyCode += `        }\n`;
+
+  return pyCode;
+}
+
+function getPythonType(protoType: string, repeated: boolean): string {
+  let baseType: string;
+  
+  switch (protoType) {
+    case 'string': baseType = 'str'; break;
+    case 'int32':
+    case 'int64':
+    case 'uint32':
+    case 'uint64':
+    case 'sint32':
+    case 'sint64':
+    case 'fixed32':
+    case 'fixed64':
+    case 'sfixed32':
+    case 'sfixed64':
+      baseType = 'int'; break;
+    case 'float':
+    case 'double':
+      baseType = 'float'; break;
+    case 'bool': baseType = 'bool'; break;
+    case 'bytes': baseType = 'bytes'; break;
+    default: baseType = 'dict'; // For message types
+  }
+
+  if (repeated) {
+    return `List[${baseType}]`;
+  }
+  
+  return `Optional[${baseType}]`;
+}
+
+function getPythonDefaultValue(protoType: string, repeated: boolean): string {
+  if (repeated) return '[]';
+  return 'None';
+}
+
 export async function convert(request: ConversionRequest): Promise<ConversionResult> {
   try {
     // Parse the proto content
@@ -213,11 +293,18 @@ export async function convert(request: ConversionRequest): Promise<ConversionRes
 
     // Get all message types from the parsed proto
     const types: protobuf.Type[] = [];
-    root.root.nestedArray.forEach(nested => {
-      if (nested instanceof protobuf.Type) {
-        types.push(nested);
-      }
-    });
+    
+    function collectTypes(namespace: protobuf.Namespace) {
+      namespace.nestedArray.forEach(nested => {
+        if (nested instanceof protobuf.Type) {
+          types.push(nested);
+        } else if (nested instanceof protobuf.Namespace) {
+          collectTypes(nested);
+        }
+      });
+    }
+    
+    collectTypes(root.root);
 
     if (types.length === 0) {
       throw new Error('No message types found in proto file');
@@ -250,8 +337,10 @@ export async function convert(request: ConversionRequest): Promise<ConversionRes
         break;
 
       case 'python':
-        // TODO: Implement Python class generation
-        throw new Error('Python conversion not yet implemented');
+        for (const type of types) {
+          output += generatePython(type) + '\n';
+        }
+        break;
 
       default:
         throw new Error(`Unsupported format: ${request.format}`);
@@ -290,7 +379,7 @@ export const SUPPORTED_FORMATS: { value: ConversionFormat; label: string; descri
   },
   {
     value: 'python',
-    label: 'Python (Coming Soon)',
-    description: 'Python dataclasses with type hints'
+    label: 'Python',
+    description: 'Python dataclasses with type hints and validation'
   }
 ];

@@ -1,11 +1,19 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import dynamic from "next/dynamic";
 import MonacoProtoEditor from "@/components/MonacoProtoEditor";
 import type { MonacoProtoEditorRef } from "@/components/MonacoProtoEditor";
 import { EXAMPLE_PROTO } from "@/lib/examples";
 import { SUPPORTED_FORMATS, ConversionFormat, ConversionResult } from "@/lib/converters";
 import type { editor } from "monaco-editor";
+
+const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full bg-[#1e1e1e] rounded-lg animate-pulse" />
+  ),
+});
 
 export default function Home() {
   const [content, setContent] = useState(EXAMPLE_PROTO);
@@ -178,7 +186,7 @@ export default function Home() {
                   className="text-xs px-3 py-1 rounded-md border border-[#1e1e2e] bg-[#12121a] text-[#7a7a8c] hover:text-white hover:border-[#333] transition-colors"
                 >
                   {SUPPORTED_FORMATS.map((format) => (
-                    <option key={format.value} value={format.value} disabled={format.value === 'python'}>
+                    <option key={format.value} value={format.value}>
                       {format.label}
                     </option>
                   ))}
@@ -272,8 +280,8 @@ export default function Home() {
                           selectedFormat === format.value
                             ? 'border-purple-400/30 bg-purple-400/5'
                             : 'border-[#1e1e2e] hover:border-[#333] hover:bg-[#0f0f15]'
-                        } ${format.value === 'python' ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        onClick={() => format.value !== 'python' && setSelectedFormat(format.value)}
+                        }`}
+                        onClick={() => setSelectedFormat(format.value)}
                       >
                         <h3 className="font-medium text-sm mb-1">{format.label}</h3>
                         <p className="text-[#7a7a8c] text-xs">{format.description}</p>
@@ -303,12 +311,23 @@ export default function Home() {
                   
                   {conversionResult && conversionResult.success && conversionResult.output && (
                     <div className="relative h-full">
-                      <MonacoProtoEditor
-                        ref={outputEditorRef}
-                        value={conversionResult.output}
-                        height="100%"
-                        onChange={() => {}} // Read-only
-                      />
+                      <div className="h-full">
+                        <MonacoEditor
+                          height="100%"
+                          language={getOutputLanguage(selectedFormat)}
+                          theme="vs-dark"
+                          value={conversionResult.output}
+                          options={{
+                            readOnly: true,
+                            minimap: { enabled: false },
+                            fontSize: 13,
+                            lineNumbers: "on",
+                            scrollBeyondLastLine: false,
+                            padding: { top: 12 },
+                            wordWrap: "on",
+                          }}
+                        />
+                      </div>
                       <button
                         onClick={() => copyToClipboard(conversionResult.output || '')}
                         className="absolute top-3 right-3 p-1.5 rounded-md bg-[#1e1e2e]/80 hover:bg-[#2a2a3e] text-[#7a7a8c] hover:text-white transition-all backdrop-blur-sm z-10"
