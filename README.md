@@ -1,36 +1,124 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# proto2any.com
+
+A modern Protocol Buffer conversion tool that transforms .proto files into various target formats including code generation, documentation, and schema exports.
+
+🔗 **Companion to [protolint.com](https://protolint.com)** - lint your .proto files first, then convert them here!
+
+## Features
+
+- **Monaco Editor** with .proto syntax highlighting
+- **Multiple conversion formats**: JavaScript, TypeScript, JSON Schema, Python
+- **Planned formats**: Go, C++, HTML docs, Markdown, OpenAPI, GraphQL, SQL DDL
+- **REST API** for CI/CD integration (`/api/convert`)
+- **Drag & drop** file upload
+- **Stateless design** - no database required
+- **Dark theme** UI consistent with protolint.com
+
+## Tech Stack
+
+- Next.js 15 (App Router)
+- TypeScript
+- Tailwind CSS
+- Monaco Editor
+- protobuf.js
+
+## Deployment
+
+### 🚀 Vercel (Recommended)
+
+This app is designed for **seamless Vercel deployment**:
+
+- ✅ **Next.js frontend** with static generation
+- ✅ **API routes** become serverless functions automatically
+- ✅ **No backend/database** required
+- ✅ **Stateless design** perfect for serverless
+
+**Deploy Options:**
+
+1. **GitHub Integration** (easiest):
+   - Connect your Vercel account to this GitHub repo
+   - Auto-deploys on push to main branch
+   - Set custom domain to `proto2any.com`
+
+2. **Vercel CLI**:
+   ```bash
+   npx vercel login
+   npx vercel --prod
+   ```
+
+3. **Import from GitHub**:
+   - Go to [vercel.com](https://vercel.com)
+   - Import this repository
+   - Deploy with default settings
+
+**Domain Setup:**
+- Add `proto2any.com` as a custom domain in Vercel dashboard
+- Configure DNS to point to Vercel's servers
+
+### Architecture
+
+Like protolint.com, this is a **stateless Next.js app** where:
+- Frontend serves the Monaco editor and UI
+- `/api/convert` endpoint handles conversions as serverless functions
+- All conversion logic runs server-side via protobuf.js
+- No database or persistent storage needed
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+# Install dependencies
+npm install
+
+# Run development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+
+# Build for production
+npm run build
+npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) with your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## API Usage
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Convert Protocol Buffer
 
-## Learn More
+```bash
+# Convert with JSON body
+curl -X POST http://localhost:3000/api/convert \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "syntax = \"proto3\";\npackage example;\nmessage User {\n  string name = 1;\n  int32 age = 2;\n}",
+    "format": "javascript"
+  }'
 
-To learn more about Next.js, take a look at the following resources:
+# Convert with file upload
+curl -X POST http://localhost:3000/api/convert \
+  -F "file=@example.proto" \
+  -F "format=typescript"
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Supported Formats
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**✅ Currently Available:**
+- `javascript` - ES6 classes with validation
+- `typescript` - TypeScript interfaces
+- `python` - Python dataclasses
+- `json-schema` - JSON Schema Draft 2019-09
 
-## Deploy on Vercel
+**🚧 Coming Soon:**
+- `go` - Go structs
+- `cpp` - C++ headers
+- `openapi` - OpenAPI/Swagger specs
+- `graphql` - GraphQL schemas
+- `html-docs` - HTML documentation
+- `markdown` - Markdown tables
+- `sql` - SQL DDL
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Related Tools
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **[protolint.com](https://protolint.com)** - Protocol Buffer linting and validation
+
+## License
+
+MIT
