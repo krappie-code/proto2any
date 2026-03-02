@@ -21,7 +21,7 @@ export default function Home() {
   const [conversionResult, setConversionResult] = useState<ConversionResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState<'preview' | 'output'>('preview');
+  const [activeTab, setActiveTab] = useState<'formats' | 'output'>('formats');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<MonacoProtoEditorRef>(null);
   const outputEditorRef = useRef<MonacoProtoEditorRef>(null);
@@ -52,18 +52,66 @@ export default function Home() {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
     if (file && file.name.endsWith('.proto')) {
-      file.text().then((text) => setContent(text));
+      file.text().then((text) => {
+        setContent(text);
+        // Auto-convert if format is selected and content exists
+        if (selectedFormat && text.trim()) {
+          setTimeout(() => {
+            fetch("/api/convert", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ content: text, format: selectedFormat }),
+            })
+            .then(res => res.json())
+            .then(data => {
+              setConversionResult(data);
+              setActiveTab('output');
+            })
+            .catch(() => {
+              setConversionResult({
+                success: false,
+                format: selectedFormat,
+                error: "Failed to convert proto file"
+              });
+            });
+          }, 100);
+        }
+      });
     }
-  }, []);
+  }, [selectedFormat]);
 
   const handleFileUpload = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (file && file.name.endsWith('.proto')) {
-        file.text().then((text) => setContent(text));
+        file.text().then((text) => {
+          setContent(text);
+          // Auto-convert if format is selected and content exists
+          if (selectedFormat && text.trim()) {
+            setTimeout(() => {
+              fetch("/api/convert", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ content: text, format: selectedFormat }),
+              })
+              .then(res => res.json())
+              .then(data => {
+                setConversionResult(data);
+                setActiveTab('output');
+              })
+              .catch(() => {
+                setConversionResult({
+                  success: false,
+                  format: selectedFormat,
+                  error: "Failed to convert proto file"
+                });
+              });
+            }, 100);
+          }
+        });
       }
     },
-    []
+    [selectedFormat]
   );
 
   const copyToClipboard = useCallback((text: string) => {
@@ -182,7 +230,32 @@ export default function Home() {
                 </button>
                 <select
                   value={selectedFormat}
-                  onChange={(e) => setSelectedFormat(e.target.value as ConversionFormat)}
+                  onChange={(e) => {
+                    const newFormat = e.target.value as ConversionFormat;
+                    setSelectedFormat(newFormat);
+                    // Auto-convert when format is selected
+                    if (content.trim()) {
+                      setTimeout(() => {
+                        fetch("/api/convert", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ content, format: newFormat }),
+                        })
+                        .then(res => res.json())
+                        .then(data => {
+                          setConversionResult(data);
+                          setActiveTab('output');
+                        })
+                        .catch(() => {
+                          setConversionResult({
+                            success: false,
+                            format: newFormat,
+                            error: "Failed to convert proto file"
+                          });
+                        });
+                      }, 0);
+                    }
+                  }}
                   className="text-xs px-3 py-1 rounded-md border border-[#1e1e2e] bg-[#12121a] text-[#7a7a8c] hover:text-white hover:border-[#333] transition-colors"
                 >
                   {SUPPORTED_FORMATS.map((format) => (
@@ -233,14 +306,14 @@ export default function Home() {
             <div className="flex items-center justify-between px-4 py-3 border-b border-[#1e1e2e]">
               <div className="flex gap-4">
                 <button
-                  onClick={() => setActiveTab('preview')}
+                  onClick={() => setActiveTab('formats')}
                   className={`text-sm transition-colors ${
-                    activeTab === 'preview' 
+                    activeTab === 'formats' 
                       ? 'text-purple-400 font-medium' 
                       : 'text-[#7a7a8c] hover:text-white'
                   }`}
                 >
-                  Preview
+                  Formats
                 </button>
                 <button
                   onClick={() => setActiveTab('output')}
@@ -250,7 +323,7 @@ export default function Home() {
                       : 'text-[#7a7a8c] hover:text-white'
                   }`}
                 >
-                  Output
+                  Converted Code
                 </button>
               </div>
               {conversionResult && (
@@ -267,11 +340,11 @@ export default function Home() {
             </div>
             
             <div className="flex-1 overflow-hidden max-h-[540px]">
-              {activeTab === 'preview' && (
+              {activeTab === 'formats' && (
                 <div className="p-4 h-full overflow-y-auto">
                   <div className="space-y-4">
                     <div className="text-sm text-[#7a7a8c] mb-4">
-                      Select a format and click "Convert" to see the output
+                      Select a format to automatically convert your proto file
                     </div>
                     {SUPPORTED_FORMATS.map((format) => (
                       <div
