@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import MonacoProtoEditor from "@/components/MonacoProtoEditor";
 import type { MonacoProtoEditorRef } from "@/components/MonacoProtoEditor";
 import { EXAMPLE_PROTO } from "@/lib/examples";
-import { SUPPORTED_FORMATS, ConversionFormat, ConversionResult } from "@/lib/converters";
+import { SUPPORTED_FORMATS, ConversionFormat, EnhancedConversionResult } from "@/lib/converters";
 import type { editor } from "monaco-editor";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
@@ -18,7 +18,7 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
 export default function Home() {
   const [content, setContent] = useState(EXAMPLE_PROTO);
   const [selectedFormat, setSelectedFormat] = useState<ConversionFormat>('javascript');
-  const [conversionResult, setConversionResult] = useState<ConversionResult | null>(null);
+  const [conversionResult, setConversionResult] = useState<EnhancedConversionResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<'formats' | 'output'>('formats');
@@ -41,7 +41,8 @@ export default function Home() {
       setConversionResult({
         success: false,
         format: selectedFormat,
-        error: "Failed to convert proto file"
+        error: "Failed to convert proto file",
+        userFriendlyMessage: "Failed to convert proto file. Please try again."
       });
     } finally {
       setLoading(false);
@@ -71,7 +72,8 @@ export default function Home() {
               setConversionResult({
                 success: false,
                 format: selectedFormat,
-                error: "Failed to convert proto file"
+                error: "Failed to convert proto file",
+                userFriendlyMessage: "Failed to convert proto file. Please try again."
               });
             });
           }, 100);
@@ -141,6 +143,10 @@ export default function Home() {
       case 'typescript': return 'typescript';
       case 'json-schema': return 'json';
       case 'python': return 'python';
+      case 'java': return 'java';
+      case 'go': return 'go';
+      case 'csharp': return 'csharp';
+      case 'cpp': return 'cpp';
       default: return 'text';
     }
   };
