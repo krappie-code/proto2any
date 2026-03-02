@@ -1122,34 +1122,9 @@ export async function convert(request: ConversionRequest): Promise<EnhancedConve
 
 export const SUPPORTED_FORMATS: { value: ConversionFormat; label: string; description: string }[] = [
   {
-    value: 'javascript',
-    label: 'JavaScript',
-    description: 'ES6 classes with validation and JSON serialization'
-  },
-  {
-    value: 'json-schema',
-    label: 'JSON Schema',
-    description: 'JSON Schema definition for validation'
-  },
-  {
-    value: 'typescript',
-    label: 'TypeScript',
-    description: 'TypeScript interfaces with type safety'
-  },
-  {
-    value: 'python',
-    label: 'Python',
-    description: 'Python dataclasses with type hints and validation'
-  },
-  {
-    value: 'java',
-    label: 'Java',
-    description: 'Java classes with builder pattern, getters/setters, and proper packaging'
-  },
-  {
-    value: 'go',
-    label: 'Go',
-    description: 'Go structs with JSON tags and protocol buffer field naming'
+    value: 'c',
+    label: 'C',
+    description: 'C struct definitions with function declarations, proper typedefs, and standard headers'
   },
   {
     value: 'csharp',
@@ -1162,18 +1137,43 @@ export const SUPPORTED_FORMATS: { value: ConversionFormat; label: string; descri
     description: 'C++ header files with class definitions and proper includes'
   },
   {
-    value: 'rust',
-    label: 'Rust',
-    description: 'Rust structs with Serde serialization, Option<T> for optional fields, and Vec<T> for arrays'
+    value: 'go',
+    label: 'Go',
+    description: 'Go structs with JSON tags and protocol buffer field naming'
   },
   {
-    value: 'c',
-    label: 'C',
-    description: 'C struct definitions with function declarations, proper typedefs, and standard headers'
+    value: 'java',
+    label: 'Java',
+    description: 'Java classes with builder pattern, getters/setters, and proper packaging'
+  },
+  {
+    value: 'javascript',
+    label: 'JavaScript',
+    description: 'ES6 classes with validation and JSON serialization'
+  },
+  {
+    value: 'json-schema',
+    label: 'JSON Schema',
+    description: 'JSON Schema definition for validation'
+  },
+  {
+    value: 'python',
+    label: 'Python',
+    description: 'Python dataclasses with type hints and validation'
   },
   {
     value: 'ruby',
     label: 'Ruby',
     description: 'Ruby classes with attribute accessors, JSON serialization, and snake_case naming'
+  },
+  {
+    value: 'rust',
+    label: 'Rust',
+    description: 'Rust structs with Serde serialization, Option<T> for optional fields, and Vec<T> for arrays'
+  },
+  {
+    value: 'typescript',
+    label: 'TypeScript',
+    description: 'TypeScript interfaces with type safety'
   }
 ];
