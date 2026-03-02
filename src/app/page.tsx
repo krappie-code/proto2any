@@ -363,7 +363,32 @@ export default function Home() {
                             ? 'border-purple-400/30 bg-purple-400/5'
                             : 'border-[#1e1e2e] hover:border-[#333] hover:bg-[#0f0f15]'
                         }`}
-                        onClick={() => setSelectedFormat(format.value)}
+                        onClick={() => {
+                          const newFormat = format.value;
+                          setSelectedFormat(newFormat);
+                          // Auto-convert when format card is clicked
+                          if (content.trim()) {
+                            setTimeout(() => {
+                              fetch("/api/convert", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ content, format: newFormat }),
+                              })
+                              .then(res => res.json())
+                              .then(data => {
+                                setConversionResult(data);
+                                setActiveTab('output');
+                              })
+                              .catch(() => {
+                                setConversionResult({
+                                  success: false,
+                                  format: newFormat,
+                                  error: "Failed to convert proto file"
+                                });
+                              });
+                            }, 0);
+                          }
+                        }}
                       >
                         <h3 className="font-medium text-sm mb-1">{format.label}</h3>
                         <p className="text-[#7a7a8c] text-xs">{format.description}</p>
