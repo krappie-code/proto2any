@@ -1,6 +1,6 @@
 import protobuf from 'protobufjs';
 
-export type ConversionFormat = 'javascript' | 'json-schema' | 'typescript' | 'python' | 'java' | 'go' | 'csharp' | 'cpp';
+export type ConversionFormat = 'javascript' | 'json-schema' | 'typescript' | 'python' | 'java' | 'go' | 'csharp' | 'cpp' | 'rust' | 'c' | 'ruby';
 
 export interface ConversionResult {
   success: boolean;
@@ -685,6 +685,283 @@ function getCppType(protoType: string, repeated: boolean): string {
   return baseType;
 }
 
+// Helper function to generate Rust struct from protobuf type
+function generateRust(type: protobuf.Type): string {
+  const structName = type.name;
+  const fields = type.fieldsArray;
+
+  let rustCode = `use serde::{Deserialize, Serialize};\n\n`;
+  rustCode += `/// ${structName} struct generated from proto definition\n`;
+  rustCode += `#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]\n`;
+  rustCode += `pub struct ${structName} {\n`;
+  
+  for (const field of fields) {
+    const rustType = getRustType(field.type, field.repeated);
+    const serde_tag = field.name;
+    
+    if ((field as any).comment) {
+      rustCode += `    /// ${(field as any).comment}\n`;
+    }
+    
+    rustCode += `    #[serde(rename = "${serde_tag}")]\n`;
+    rustCode += `    pub ${field.name}: ${rustType},\n`;
+  }
+  
+  rustCode += `}\n\n`;
+
+  // Add implementation block with validation
+  rustCode += `impl ${structName} {\n`;
+  rustCode += `    /// Create a new instance with default values\n`;
+  rustCode += `    pub fn new() -> Self {\n`;
+  rustCode += `        Default::default()\n`;
+  rustCode += `    }\n\n`;
+
+  // Add validation method
+  rustCode += `    /// Validate the struct and return list of errors\n`;
+  rustCode += `    pub fn validate(&self) -> Vec<String> {\n`;
+  rustCode += `        let mut errors = Vec::new();\n`;
+  for (const field of fields) {
+    if (!field.repeated && (field as any).required !== false) {
+      if (field.type === 'string') {
+        rustCode += `        if self.${field.name}.is_empty() {\n`;
+        rustCode += `            errors.push("${field.name} is required".to_string());\n`;
+        rustCode += `        }\n`;
+      }
+    }
+  }
+  rustCode += `        errors\n`;
+  rustCode += `    }\n\n`;
+
+  // Add JSON serialization helpers
+  rustCode += `    /// Serialize to JSON string\n`;
+  rustCode += `    pub fn to_json(&self) -> Result<String, serde_json::Error> {\n`;
+  rustCode += `        serde_json::to_string(self)\n`;
+  rustCode += `    }\n\n`;
+
+  rustCode += `    /// Deserialize from JSON string\n`;
+  rustCode += `    pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {\n`;
+  rustCode += `        serde_json::from_str(json)\n`;
+  rustCode += `    }\n`;
+
+  rustCode += `}\n`;
+  return rustCode;
+}
+
+function getRustType(protoType: string, repeated: boolean): string {
+  let baseType: string;
+  
+  switch (protoType) {
+    case 'string': baseType = 'String'; break;
+    case 'int32':
+    case 'sint32':
+    case 'sfixed32':
+      baseType = 'i32'; break;
+    case 'int64':
+    case 'sint64':
+    case 'sfixed64':
+      baseType = 'i64'; break;
+    case 'uint32':
+    case 'fixed32':
+      baseType = 'u32'; break;
+    case 'uint64':
+    case 'fixed64':
+      baseType = 'u64'; break;
+    case 'float': baseType = 'f32'; break;
+    case 'double': baseType = 'f64'; break;
+    case 'bool': baseType = 'bool'; break;
+    case 'bytes': baseType = 'Vec<u8>'; break;
+    default: baseType = 'serde_json::Value'; // For message types
+  }
+
+  if (repeated) {
+    return `Vec<${baseType}>`;
+  }
+  
+  // For proto3, use Option for optional fields
+  return `Option<${baseType}>`;
+}
+
+// Helper function to generate C struct from protobuf type
+function generateC(type: protobuf.Type): string {
+  const structName = type.name;
+  const fields = type.fieldsArray;
+
+  let cCode = `#ifndef ${structName.toUpperCase()}_H\n`;
+  cCode += `#define ${structName.toUpperCase()}_H\n\n`;
+  cCode += `#include <stdint.h>\n#include <stdbool.h>\n#include <stdlib.h>\n#include <string.h>\n\n`;
+  cCode += `/**\n * ${structName} struct generated from proto definition\n */\n`;
+  cCode += `typedef struct ${structName} {\n`;
+  
+  for (const field of fields) {
+    const cType = getCType(field.type, field.repeated);
+    
+    if ((field as any).comment) {
+      cCode += `    /* ${(field as any).comment} */\n`;
+    }
+    
+    cCode += `    ${cType} ${field.name};\n`;
+    
+    // For repeated fields, add size field
+    if (field.repeated) {
+      cCode += `    size_t ${field.name}_count;\n`;
+    }
+  }
+  
+  cCode += `} ${structName};\n\n`;
+
+  // Function declarations
+  cCode += `/* Function declarations */\n`;
+  cCode += `${structName}* ${structName}_create(void);\n`;
+  cCode += `void ${structName}_destroy(${structName}* obj);\n`;
+  cCode += `int ${structName}_validate(const ${structName}* obj, char* error_buffer, size_t buffer_size);\n`;
+  cCode += `char* ${structName}_to_json(const ${structName}* obj);\n`;
+  cCode += `${structName}* ${structName}_from_json(const char* json_string);\n\n`;
+
+  // Add setters for repeated fields
+  for (const field of fields) {
+    if (field.repeated) {
+      const baseCType = getCType(field.type, false);
+      cCode += `int ${structName}_add_${field.name}(${structName}* obj, ${baseCType} value);\n`;
+      cCode += `void ${structName}_clear_${field.name}(${structName}* obj);\n`;
+    }
+  }
+
+  cCode += `\n#endif /* ${structName.toUpperCase()}_H */\n`;
+  return cCode;
+}
+
+function getCType(protoType: string, repeated: boolean): string {
+  let baseType: string;
+  
+  switch (protoType) {
+    case 'string': baseType = 'char*'; break;
+    case 'int32':
+    case 'sint32':
+    case 'sfixed32':
+      baseType = 'int32_t'; break;
+    case 'int64':
+    case 'sint64':
+    case 'sfixed64':
+      baseType = 'int64_t'; break;
+    case 'uint32':
+    case 'fixed32':
+      baseType = 'uint32_t'; break;
+    case 'uint64':
+    case 'fixed64':
+      baseType = 'uint64_t'; break;
+    case 'float': baseType = 'float'; break;
+    case 'double': baseType = 'double'; break;
+    case 'bool': baseType = 'bool'; break;
+    case 'bytes': baseType = 'unsigned char*'; break;
+    default: baseType = 'void*'; // For message types
+  }
+
+  if (repeated) {
+    return `${baseType}*`;
+  }
+  
+  return baseType;
+}
+
+// Helper function to generate Ruby class from protobuf type
+function generateRuby(type: protobuf.Type): string {
+  const className = type.name;
+  const fields = type.fieldsArray;
+
+  let rubyCode = `require 'json'\n\n`;
+  rubyCode += `##\n# ${className} class generated from proto definition\n##\n`;
+  rubyCode += `class ${className}\n`;
+  
+  // Add attribute accessors
+  const fieldNames = fields.map(field => field.name);
+  rubyCode += `  attr_accessor ${fieldNames.map(name => `:${name}`).join(', ')}\n\n`;
+
+  // Initialize method
+  rubyCode += `  def initialize(data = {})\n`;
+  for (const field of fields) {
+    const defaultValue = getRubyDefaultValue(field.type, field.repeated);
+    rubyCode += `    @${field.name} = data[:${field.name}] || data['${field.name}'] || ${defaultValue}\n`;
+  }
+  rubyCode += `  end\n\n`;
+
+  // Validation method
+  rubyCode += `  def validate\n`;
+  rubyCode += `    errors = []\n`;
+  for (const field of fields) {
+    if (!field.repeated && (field as any).required !== false) {
+      if (field.type === 'string') {
+        rubyCode += `    errors << '${field.name} is required' if @${field.name}.nil? || @${field.name}.empty?\n`;
+      } else {
+        rubyCode += `    errors << '${field.name} is required' if @${field.name}.nil?\n`;
+      }
+    }
+  }
+  rubyCode += `    errors\n`;
+  rubyCode += `  end\n\n`;
+
+  // to_hash method
+  rubyCode += `  def to_hash\n`;
+  rubyCode += `    {\n`;
+  for (const field of fields) {
+    rubyCode += `      '${field.name}' => @${field.name},\n`;
+  }
+  rubyCode += `    }\n`;
+  rubyCode += `  end\n\n`;
+
+  // to_json method
+  rubyCode += `  def to_json(*args)\n`;
+  rubyCode += `    to_hash.to_json(*args)\n`;
+  rubyCode += `  end\n\n`;
+
+  // from_json class method
+  rubyCode += `  def self.from_json(json_string)\n`;
+  rubyCode += `    data = JSON.parse(json_string)\n`;
+  rubyCode += `    new(data)\n`;
+  rubyCode += `  rescue JSON::ParserError => e\n`;
+  rubyCode += `    raise ArgumentError, "Invalid JSON: #{e.message}"\n`;
+  rubyCode += `  end\n\n`;
+
+  // Add helpful methods for repeated fields
+  for (const field of fields) {
+    if (field.repeated) {
+      rubyCode += `  def add_${field.name}(value)\n`;
+      rubyCode += `    @${field.name} << value\n`;
+      rubyCode += `  end\n\n`;
+
+      rubyCode += `  def clear_${field.name}\n`;
+      rubyCode += `    @${field.name}.clear\n`;
+      rubyCode += `  end\n\n`;
+    }
+  }
+
+  rubyCode += `end\n`;
+  return rubyCode;
+}
+
+function getRubyDefaultValue(protoType: string, repeated: boolean): string {
+  if (repeated) return '[]';
+  
+  switch (protoType) {
+    case 'string': return "''";
+    case 'int32':
+    case 'int64':
+    case 'uint32':
+    case 'uint64':
+    case 'sint32':
+    case 'sint64':
+    case 'fixed32':
+    case 'fixed64':
+    case 'sfixed32':
+    case 'sfixed64':
+    case 'float':
+    case 'double':
+      return '0';
+    case 'bool': return 'false';
+    case 'bytes': return "''";
+    default: return 'nil';
+  }
+}
+
 // Helper function to check if error suggests protolint validation
 function isParsingError(errorMessage: string): boolean {
   const parsingErrorIndicators = [
@@ -788,6 +1065,24 @@ export async function convert(request: ConversionRequest): Promise<EnhancedConve
         }
         break;
 
+      case 'rust':
+        for (const type of types) {
+          output += generateRust(type) + '\n';
+        }
+        break;
+
+      case 'c':
+        for (const type of types) {
+          output += generateC(type) + '\n';
+        }
+        break;
+
+      case 'ruby':
+        for (const type of types) {
+          output += generateRuby(type) + '\n';
+        }
+        break;
+
       default:
         throw new Error(`Unsupported format: ${request.format}`);
     }
@@ -865,5 +1160,20 @@ export const SUPPORTED_FORMATS: { value: ConversionFormat; label: string; descri
     value: 'cpp',
     label: 'C++',
     description: 'C++ header files with class definitions and proper includes'
+  },
+  {
+    value: 'rust',
+    label: 'Rust',
+    description: 'Rust structs with Serde serialization, Option<T> for optional fields, and Vec<T> for arrays'
+  },
+  {
+    value: 'c',
+    label: 'C',
+    description: 'C struct definitions with function declarations, proper typedefs, and standard headers'
+  },
+  {
+    value: 'ruby',
+    label: 'Ruby',
+    description: 'Ruby classes with attribute accessors, JSON serialization, and snake_case naming'
   }
 ];

@@ -147,6 +147,9 @@ export default function Home() {
       case 'go': return 'go';
       case 'csharp': return 'csharp';
       case 'cpp': return 'cpp';
+      case 'rust': return 'rust';
+      case 'c': return 'c';
+      case 'ruby': return 'ruby';
       default: return 'text';
     }
   };

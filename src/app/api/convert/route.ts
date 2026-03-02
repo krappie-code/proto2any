@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
       }
       
       content = await file.text();
-      if (formatParam && ['javascript', 'json-schema', 'typescript', 'python', 'java', 'go', 'csharp', 'cpp'].includes(formatParam)) {
+      if (formatParam && ['javascript', 'json-schema', 'typescript', 'python', 'java', 'go', 'csharp', 'cpp', 'rust', 'c', 'ruby'].includes(formatParam)) {
         format = formatParam as ConversionFormat;
       }
     } else {
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
       }
       
       content = body.content;
-      if (body.format && ['javascript', 'json-schema', 'typescript', 'python', 'java', 'go', 'csharp', 'cpp'].includes(body.format)) {
+      if (body.format && ['javascript', 'json-schema', 'typescript', 'python', 'java', 'go', 'csharp', 'cpp', 'rust', 'c', 'ruby'].includes(body.format)) {
         format = body.format as ConversionFormat;
       }
     }
