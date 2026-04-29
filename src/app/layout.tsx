@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { GoogleAnalytics } from "@next/third-parties/google";
+import Script from "next/script";
+import { GA_MEASUREMENT_ID } from "@/lib/analytics";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -74,8 +75,35 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
+        
+        {/* Google Analytics */}
+        <Script
+          src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            
+            // Set default consent
+            gtag('consent', 'default', {
+              analytics_storage: 'granted',
+              ad_storage: 'denied',
+              wait_for_update: 500,
+            });
+            
+            gtag('config', '${GA_MEASUREMENT_ID}', {
+              page_title: document.title,
+              page_location: window.location.href,
+              anonymize_ip: true,
+              allow_google_signals: false,
+              cookie_flags: 'secure;samesite=lax',
+            });
+          `}
+        </Script>
       </body>
-      <GoogleAnalytics gaId="G-9MGSZBHV04" />
     </html>
   );
 }

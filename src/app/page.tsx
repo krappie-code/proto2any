@@ -1,12 +1,23 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
 import MonacoProtoEditor from "@/components/MonacoProtoEditor";
 import type { MonacoProtoEditorRef } from "@/components/MonacoProtoEditor";
 import { EXAMPLE_PROTO } from "@/lib/examples";
 import { SUPPORTED_FORMATS, ConversionFormat, EnhancedConversionResult } from "@/lib/converters";
 import type { editor } from "monaco-editor";
+import {
+  trackFileUpload,
+  trackConversion,
+  trackFormatSelection,
+  trackCopyToClipboard,
+  trackTabSwitch,
+  trackExternalLink,
+  trackConversionFunnel,
+  trackUserEngagement,
+  pageview
+} from "@/lib/analytics";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
   ssr: false,
@@ -26,8 +37,25 @@ export default function Home() {
   const editorRef = useRef<MonacoProtoEditorRef>(null);
   const outputEditorRef = useRef<MonacoProtoEditorRef>(null);
 
+  // Track page view and session start
+  useEffect(() => {
+    pageview(window.location.pathname + window.location.search);
+    trackUserEngagement.sessionStart();
+    
+    // Track user engagement after meaningful interaction
+    const engagementTimer = setTimeout(() => {
+      trackUserEngagement.engagedUser();
+    }, 10000);
+
+    return () => clearTimeout(engagementTimer);
+  }, []);
+
   const handleConvert = useCallback(async () => {
     setLoading(true);
+    
+    // Track conversion start
+    trackConversionFunnel.beginConversion(selectedFormat);
+    
     try {
       const res = await fetch("/api/convert", {
         method: "POST",
@@ -37,13 +65,23 @@ export default function Home() {
       const data = await res.json();
       setConversionResult(data);
       setActiveTab('output');
+      
+      // Track conversion result
+      trackConversion(selectedFormat, data.success, 'manual');
+      if (data.success) {
+        trackConversionFunnel.completeConversion(selectedFormat);
+      }
     } catch (error) {
-      setConversionResult({
+      const result = {
         success: false,
         format: selectedFormat,
         error: "Failed to convert proto file",
         userFriendlyMessage: "Failed to convert proto file. Please try again."
-      });
+      };
+      setConversionResult(result);
+      
+      // Track conversion error
+      trackConversion(selectedFormat, false, 'manual');
     } finally {
       setLoading(false);
     }
@@ -53,10 +91,15 @@ export default function Home() {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
     if (file && file.name.endsWith('.proto')) {
+      // Track file upload via drag and drop
+      trackFileUpload('drag_drop');
+      
       file.text().then((text) => {
         setContent(text);
         // Auto-convert if format is selected and content exists
         if (selectedFormat && text.trim()) {
+          trackConversionFunnel.beginConversion(selectedFormat);
+          
           setTimeout(() => {
             fetch("/api/convert", {
               method: "POST",
@@ -67,14 +110,22 @@ export default function Home() {
             .then(data => {
               setConversionResult(data);
               setActiveTab('output');
+              
+              // Track auto-conversion result
+              trackConversion(selectedFormat, data.success, 'auto');
+              if (data.success) {
+                trackConversionFunnel.completeConversion(selectedFormat);
+              }
             })
             .catch(() => {
-              setConversionResult({
+              const result = {
                 success: false,
                 format: selectedFormat,
                 error: "Failed to convert proto file",
                 userFriendlyMessage: "Failed to convert proto file. Please try again."
-              });
+              };
+              setConversionResult(result);
+              trackConversion(selectedFormat, false, 'auto');
             });
           }, 100);
         }
@@ -86,10 +137,15 @@ export default function Home() {
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (file && file.name.endsWith('.proto')) {
+        // Track file upload via button
+        trackFileUpload('file_button');
+        
         file.text().then((text) => {
           setContent(text);
           // Auto-convert if format is selected and content exists
           if (selectedFormat && text.trim()) {
+            trackConversionFunnel.beginConversion(selectedFormat);
+            
             setTimeout(() => {
               fetch("/api/convert", {
                 method: "POST",
@@ -100,13 +156,21 @@ export default function Home() {
               .then(data => {
                 setConversionResult(data);
                 setActiveTab('output');
+                
+                // Track auto-conversion result
+                trackConversion(selectedFormat, data.success, 'auto');
+                if (data.success) {
+                  trackConversionFunnel.completeConversion(selectedFormat);
+                }
               })
               .catch(() => {
-                setConversionResult({
+                const result = {
                   success: false,
                   format: selectedFormat,
                   error: "Failed to convert proto file"
-                });
+                };
+                setConversionResult(result);
+                trackConversion(selectedFormat, false, 'auto');
               });
             }, 100);
           }
@@ -116,11 +180,14 @@ export default function Home() {
     [selectedFormat]
   );
 
-  const copyToClipboard = useCallback((text: string) => {
+  const copyToClipboard = useCallback((text: string, contentType: 'proto_input' | 'converted_output') => {
     if (navigator.clipboard && window.isSecureContext) {
       navigator.clipboard.writeText(text).then(() => {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
+        
+        // Track copy to clipboard
+        trackCopyToClipboard(contentType);
       });
     } else {
       // Fallback for non-HTTPS
@@ -134,6 +201,9 @@ export default function Home() {
       document.body.removeChild(textarea);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+      
+      // Track copy to clipboard
+      trackCopyToClipboard(contentType);
     }
   }, []);
 
@@ -150,6 +220,13 @@ export default function Home() {
       case 'rust': return 'rust';
       case 'c': return 'c';
       case 'ruby': return 'ruby';
+      case 'swift': return 'swift';
+      case 'kotlin': return 'kotlin';
+      case 'php': return 'php';
+      case 'dart': return 'dart';
+      case 'elixir': return 'elixir';
+      case 'groovy': return 'groovy';
+      case 'scala': return 'scala';
       default: return 'text';
     }
   };
@@ -171,6 +248,7 @@ export default function Home() {
               target="_blank"
               rel="noopener noreferrer"
               className="text-[#7a7a8c] hover:text-white transition-colors text-sm"
+              onClick={() => trackExternalLink('protolint.com')}
             >
               protolint.com →
             </a>
@@ -179,6 +257,7 @@ export default function Home() {
               target="_blank"
               rel="noopener noreferrer"
               className="text-[#7a7a8c] hover:text-white transition-colors text-sm"
+              onClick={() => trackExternalLink('github.com')}
             >
               GitHub →
             </a>
@@ -206,6 +285,7 @@ export default function Home() {
             target="_blank" 
             rel="noopener noreferrer"
             className="text-purple-400 hover:text-purple-300 transition-colors"
+            onClick={() => trackExternalLink('protolint.com')}
           >
             Check them at protolint.com
           </a>
@@ -242,8 +322,14 @@ export default function Home() {
                   onChange={(e) => {
                     const newFormat = e.target.value as ConversionFormat;
                     setSelectedFormat(newFormat);
+                    
+                    // Track format selection
+                    trackFormatSelection(newFormat, 'dropdown');
+                    
                     // Auto-convert when format is selected
                     if (content.trim()) {
+                      trackConversionFunnel.beginConversion(newFormat);
+                      
                       setTimeout(() => {
                         fetch("/api/convert", {
                           method: "POST",
@@ -254,13 +340,21 @@ export default function Home() {
                         .then(data => {
                           setConversionResult(data);
                           setActiveTab('output');
+                          
+                          // Track auto-conversion result
+                          trackConversion(newFormat, data.success, 'auto');
+                          if (data.success) {
+                            trackConversionFunnel.completeConversion(newFormat);
+                          }
                         })
                         .catch(() => {
-                          setConversionResult({
+                          const result = {
                             success: false,
                             format: newFormat,
                             error: "Failed to convert proto file"
-                          });
+                          };
+                          setConversionResult(result);
+                          trackConversion(newFormat, false, 'auto');
                         });
                       }, 0);
                     }
@@ -289,7 +383,7 @@ export default function Home() {
                 onChange={setContent}
               />
               <button
-                onClick={() => copyToClipboard(content)}
+                onClick={() => copyToClipboard(content, 'proto_input')}
                 className="absolute top-3 right-3 p-1.5 rounded-md bg-[#1e1e2e]/80 hover:bg-[#2a2a3e] text-[#7a7a8c] hover:text-white transition-all backdrop-blur-sm z-10"
                 title="Copy to clipboard"
               >
@@ -315,7 +409,10 @@ export default function Home() {
             <div className="flex items-center justify-between px-4 py-3 border-b border-[#1e1e2e]">
               <div className="flex gap-4">
                 <button
-                  onClick={() => setActiveTab('formats')}
+                  onClick={() => {
+                    setActiveTab('formats');
+                    trackTabSwitch('formats');
+                  }}
                   className={`text-sm transition-colors ${
                     activeTab === 'formats' 
                       ? 'text-purple-400 font-medium' 
@@ -325,7 +422,10 @@ export default function Home() {
                   Formats
                 </button>
                 <button
-                  onClick={() => setActiveTab('output')}
+                  onClick={() => {
+                    setActiveTab('output');
+                    trackTabSwitch('output');
+                  }}
                   className={`text-sm transition-colors ${
                     activeTab === 'output' 
                       ? 'text-purple-400 font-medium' 
@@ -366,8 +466,14 @@ export default function Home() {
                         onClick={() => {
                           const newFormat = format.value;
                           setSelectedFormat(newFormat);
+                          
+                          // Track format selection via card click
+                          trackFormatSelection(newFormat, 'card_click');
+                          
                           // Auto-convert when format card is clicked
                           if (content.trim()) {
+                            trackConversionFunnel.beginConversion(newFormat);
+                            
                             setTimeout(() => {
                               fetch("/api/convert", {
                                 method: "POST",
@@ -378,13 +484,21 @@ export default function Home() {
                               .then(data => {
                                 setConversionResult(data);
                                 setActiveTab('output');
+                                
+                                // Track auto-conversion result
+                                trackConversion(newFormat, data.success, 'auto');
+                                if (data.success) {
+                                  trackConversionFunnel.completeConversion(newFormat);
+                                }
                               })
                               .catch(() => {
-                                setConversionResult({
+                                const result = {
                                   success: false,
                                   format: newFormat,
                                   error: "Failed to convert proto file"
-                                });
+                                };
+                                setConversionResult(result);
+                                trackConversion(newFormat, false, 'auto');
                               });
                             }, 0);
                           }
@@ -436,7 +550,7 @@ export default function Home() {
                         />
                       </div>
                       <button
-                        onClick={() => copyToClipboard(conversionResult.output || '')}
+                        onClick={() => copyToClipboard(conversionResult.output || '', 'converted_output')}
                         className="absolute top-3 right-3 p-1.5 rounded-md bg-[#1e1e2e]/80 hover:bg-[#2a2a3e] text-[#7a7a8c] hover:text-white transition-all backdrop-blur-sm z-10"
                         title="Copy output to clipboard"
                       >
@@ -510,6 +624,7 @@ curl -X POST https://proto2any.com/api/convert \\
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-white transition-colors"
+              onClick={() => trackExternalLink('protolint.com')}
             >
               Validate with protolint
             </a>
@@ -518,6 +633,7 @@ curl -X POST https://proto2any.com/api/convert \\
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-white transition-colors"
+              onClick={() => trackExternalLink('github.com')}
             >
               GitHub
             </a>
